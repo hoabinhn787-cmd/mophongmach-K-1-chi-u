@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIAS LAB - GIẢI CỨU ĐIỂM LÀM VIỆC</title>
+<style>
+  :root {
+    --bg: #0b1120; --panel: #1e293b; --primary: #10b981; --accent: #3b82f6;
+    --text: #f8fafc; --text-muted: #94a3b8; --danger: #ef4444; --warning: #f59e0b;
+  }
+  * { box-sizing: border-box; user-select: none; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  header { background: var(--panel); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); box-shadow: 0 0 10px rgba(16,185,129,0.3); z-index: 10; }
+  header h1 { margin: 0; font-size: 1.2rem; color: var(--primary); letter-spacing: 2px; }
+  .stats { display: flex; gap: 20px; font-weight: bold; }
+  .btn { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+  .btn:hover { filter: brightness(1.2); box-shadow: 0 0 8px var(--accent); }
+  .btn-primary { background: var(--primary); }
+  .btn-danger { background: var(--danger); }
+  
+  #app { flex: 1; position: relative; overflow-y: auto; padding: 20px; }
+  .screen { display: none; height: 100%; flex-direction: column; align-items: center; justify-content: center; animation: fadeIn 0.5s; }
+  .screen.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+  
+  .card { background: var(--panel); border: 1px solid #334155; border-radius: 8px; padding: 20px; text-align: center; max-width: 800px; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+  .title { color: var(--warning); margin-top: 0; font-size: 1.5rem; text-transform: uppercase; }
+  
+  .svg-container { width: 100%; max-width: 400px; margin: 20px auto; background: #0f172a; border: 1px solid #334155; border-radius: 8px; position: relative; }
+  svg { width: 100%; height: auto; }
+  .node-text { font-family: monospace; font-size: 14px; fill: #fff; }
+  .wire { stroke: #3b82f6; stroke-width: 2; fill: none; }
+  .component { stroke: #10b981; stroke-width: 2; fill: var(--bg); }
+  .current-flow { stroke: #f59e0b; stroke-width: 2; fill: none; stroke-dasharray: 4, 4; animation: flow 1s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -8; } }
+  
+  .draggable { display: inline-block; padding: 8px 12px; background: var(--accent); border-radius: 4px; cursor: grab; font-weight: bold; margin: 5px; border: 1px solid #60a5fa; }
+  .draggable:active { cursor: grabbing; }
+  .dropzone { border: 2px dashed #64748b; background: rgba(255,255,255,0.05); min-height: 40px; min-width: 100px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; margin: 5px; transition: 0.3s; }
+  .dropzone.hover { background: rgba(16,185,129,0.2); border-color: var(--primary); }
+  .dropzone.filled { border: 2px solid var(--primary); background: rgba(16,185,129,0.1); }
+  
+  .feedback { margin-top: 15px; padding: 10px; border-radius: 4px; font-weight: bold; display: none; }
+  .feedback.success { display: block; background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid #22c55e; }
+  .feedback.error { display: block; background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid #ef4444; }
+  
+  /* Simulator grid */
+  .sim-grid { display: grid; grid-template-columns: 250px 1fr 250px; gap: 20px; width: 100%; height: 100%; }
+  .sim-panel { background: var(--panel); border: 1px solid #334155; padding: 15px; border-radius: 8px; overflow-y: auto; }
+  .slider-group { margin-bottom: 15px; }
+  .slider-group label { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px; color: var(--text-muted); }
+  input[type=range] { width: 100%; accent-color: var(--primary); }
+  .meter { background: #000; color: #10b981; font-family: 'Courier New', Courier, monospace; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; font-size: 1.1rem; border: 1px solid #333; display: flex; justify-content: space-between; }
+  
+  /* Modals */
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 100; }
+  .modal-overlay.active { display: flex; }
+  .modal-content { background: var(--panel); padding: 20px; border-radius: 8px; width: 400px; max-width: 90%; border: 1px solid var(--primary); }
+  
+  .seq-container { display: flex; flex-direction: column; gap: 10px; margin: 20px 0; align-items: center; }
+  .seq-slot { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 300px; }
+  .seq-slot .dropzone { flex: 1; }
+  .arrow-down { color: var(--primary); font-weight: bold; }
+  
+  canvas { width: 100%; height: 150px; background: #000; border: 1px solid #334155; border-radius: 4px; }
+  
+  /* Select inputs */
+  select, input[type="number"] { padding: 8px; background: #0f172a; color: white; border: 1px solid #334155; border-radius: 4px; width: 100%; margin-top: 5px; font-family: inherit; }
+
+  @media (max-width: 768px) {
+    .sim-grid { grid-template-columns: 1fr; }
+    .stats { font-size: 0.8rem; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BIAS LAB</h1>
+  <div class="stats">
+    <div>XP: <span id="ui-xp">0</span> ⭐</div>
+    <div>HP: <span id="ui-hp">❤️❤️❤️</span></div>
+    <div>Combo: <span id="ui-combo">0</span> 🔥</div>
+    <div>Trạm: <span id="ui-station">0</span>/5</div>
+  </div>
+  <button class="btn" onclick="openTeacherMode()">⚙ GIÁO VIÊN</button>
+</header>
+
+<div id="app">
+  <!-- Màn hình chào -->
+  <div id="screen-welcome" class="screen active">
+    <div class="card">
+      <h2 class="title">BIAS LAB - GIẢI CỨU ĐIỂM LÀM VIỆC</h2>
+      <p>Hệ thống khuếch đại BJT trong phòng thực hành đang mất ổn định. Bạn - kỹ thuật viên tập sự, có nhiệm vụ khôi phục lại điểm làm việc tĩnh Q.</p>
+      <p>Hãy vận dụng kiến thức giáo trình Điện tử tương tự để vượt qua 5 trạm kỹ thuật!</p>
+      <button class="btn btn-primary" style="font-size: 1.2rem; margin-top: 20px;" onclick="nextStation()">BẮT ĐẦU</button>
+    </div>
+  </div>
+
+  <!-- Trạm 1: Mạch nào đây -->
+  <div id="screen-station1" class="screen">
+    <div class="card">
+      <h2 class="title">TRẠM 1: MẠCH NÀO ĐÂY?</h2>
+      <p id="s1-desc">Hãy xác định tên phương pháp cấp nguồn hoặc kéo linh kiện còn thiếu vào đúng vị trí.</p>
+      <div id="s1-svg" class="svg-container"></div>
+      <div id="s1-drag-container" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 15px;"></div>
+      <div id="s1-drop-container" style="margin-bottom: 20px;"></div>
+      <button class="btn btn-primary" onclick="checkS1()" id="s1-btn-check">KIỂM TRA</button>
+      <button class="btn" onclick="nextS1()" id="s1-btn-next" style="display:none;">TIẾP TỤC</button>
+      <div id="s1-feedback" class="feedback"></div>
+    </div>
+  </div>
+
+  <!-- Trạm 2: Bias Calculator -->
+  <div id="screen-station2" class="screen">
+    <div class="card">
+      <h2 class="title">TRẠM 2: BIAS CALCULATOR</h2>
+      <p id="s2-problem" style="font-size:1.1rem; color:var(--warning);"></p>
+      <div id="s2-circuit" class="svg-container" style="height:200px;"></div>
+      
+      <div style="text-align: left; max-width: 400px; margin: 0 auto;">
+        <label>1. Chọn công thức:</label>
+        <select id="s2-formula"></select>
+        
+        <label style="margin-top: 10px; display: block;">2. Nhập kết quả:</label>
+        <div style="display: flex; gap: 10px;">
+          <input type="number" id="s2-answer" step="any" placeholder="Ví dụ: 12.5" style="flex:1;">
+          <select id="s2-unit" style="width: 80px;">
+            <option value="A">A</option><option value="mA">mA</option><option value="uA">μA</option>
+            <option value="V">V</option><option value="mV">mV</option>
+          </select>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" style="margin-top:20px;" onclick="checkS2()" id="s2-btn-check">KIỂM TRA</button>
+      <button class="btn" style="margin-top:20px; display:none;" onclick="nextS2()" id="s2-btn-next">TIẾP TỤC</button>
+      <div id="s2-feedback" class="feedback"></div>
+    </div>
+  </div>
+
+  <!-- Trạm 3: Bias Simulator -->
+  <div id="screen-station3" class="screen">
+    <h2 class="title" style="margin-bottom: 10px;">TRẠM 3: BIAS SIMULATOR</h2>
+    <div class="sim-grid">
+      <div class="sim-panel">
+        <h3 style="margin-top:0; color:var(--primary); border-bottom:1px solid #334155; padding-bottom:5px;">ĐIỀU KHIỂN</h3>
+        <select id="s3-circuit-type" onchange="renderS3()" style="margin-bottom: 15px;">
+          <option value="fixed">Dòng cố định</option>
+          <option value="feedback">Hồi tiếp điện áp</option>
+          <option value="divider">Cầu phân áp</option>
+        </select>
+        <div id="s3-sliders"></div>
+        <div style="display: flex; gap: 5px; margin-top: 15px;">
+          <button class="btn btn-primary" style="flex:1" onclick="s3State.on = !s3State.on; updateS3();" id="s3-btn-power">▶ CẤP NGUỒN</button>
+        </div>
+      </div>
+      <div class="sim-panel" style="display: flex; align-items: center; justify-content: center; position: relative;">
+        <div id="s3-svg" style="width: 100%; height: 100%;"></div>
+        <div id="s3-status" style="position:absolute; top:10px; right:10px; font-weight:bold; color:var(--danger);">OFF</div>
+      </div>
+      <div class="sim-panel">
+        <h3 style="margin-top:0; color:var(--primary); border-bottom:1px solid #334155; padding-bottom:5px;">ĐỒNG HỒ ĐO</h3>
+        <div id="s3-meters"></div>
+        <button class="btn btn-primary" style="width:100%; margin-top:20px;" onclick="completeS3()">HOÀN THÀNH TRẠM 3</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trạm 4: Heat Alert -->
+  <div id="screen-station4" class="screen">
+    <div class="card" style="max-width: 900px; height: 95%; overflow-y: auto;">
+      <h2 class="title">TRẠM 4: HEAT ALERT</h2>
+      <p>Mạch đang bị nóng lên do hoạt động! Hãy sắp xếp chuỗi biến đổi vật lý xảy ra trong mạch phân cực có điện trở RE để thấy cơ chế <strong>ổn định nhiệt</strong>.</p>
+      
+      <div style="display: flex; justify-content: space-around; margin-bottom: 20px; flex-wrap:wrap;">
+        <div style="width: 45%; min-width: 250px;">
+          <h4 style="margin:5px 0; color:#94a3b8;">Mạch không RE</h4>
+          <div id="s4-svg-nore" class="svg-container" style="height:150px; margin:0 auto;"></div>
+        </div>
+        <div style="width: 45%; min-width: 250px;">
+          <h4 style="margin:5px 0; color:var(--primary);">Mạch có RE (Ổn định nhiệt)</h4>
+          <div id="s4-svg-re" class="svg-container" style="height:150px; margin:0 auto;"></div>
+        </div>
+      </div>
+
+      <div style="background: #0f172a; padding: 15px; border-radius: 8px;">
+        <h4 style="margin-top:0; color:var(--warning);">Chuỗi nguyên nhân - kết quả (Kéo thả vào ô trống)</h4>
+        <div id="s4-draggables" style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:15px; min-height:45px;"></div>
+        
+        <div class="seq-container" id="s4-seq-container">
+          <!-- Auto generated slots -->
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:15px;" onclick="checkS4()" id="s4-btn-check">KIỂM TRA CHUỖI</button>
+      <button class="btn" style="margin-top:15px; display:none;" onclick="nextStation()" id="s4-btn-next">TIẾP TỤC</button>
+      <div id="s4-feedback" class="feedback"></div>
+    </div>
+  </div>
+
+  <!-- Mini Game: Feedback Detective -->
+  <div id="screen-minigame1" class="screen">
+    <div class="card">
+      <h2 class="title">MINI GAME: FEEDBACK DETECTIVE</h2>
+      <p>Quan sát hai tín hiệu V<sub>in</sub> và V<sub>feedback</sub>. Hãy xác định loại hồi tiếp!</p>
+      <p style="font-size: 0.9em; color: var(--text-muted);">
+        * Hồi tiếp âm: tín hiệu hồi tiếp ngược pha với tín hiệu vào.<br>
+        * Hồi tiếp dương: tín hiệu hồi tiếp đồng pha với tín hiệu vào.
+      </p>
+      <canvas id="s-mg1-canvas" height="150"></canvas>
+      <div style="display:flex; gap:20px; justify-content:center; margin-top:20px;">
+        <button class="btn" style="background:#ef4444;" onclick="checkMG1('âm')">HỒI TIẾP ÂM</button>
+        <button class="btn" style="background:#3b82f6;" onclick="checkMG1('dương')">HỒI TIẾP DƯƠNG</button>
+      </div>
+      <button class="btn btn-primary" style="margin-top:15px; display:none;" onclick="nextStation()" id="mg1-btn-next">TIẾP TỤC</button>
+      <div id="mg1-feedback" class="feedback"></div>
+    </div>
+  </div>
+
+  <!-- Report / Luyện tập -->
+  <div id="screen-report" class="screen">
+    <div class="card">
+      <h2 class="title">BÁO CÁO NĂNG LỰC</h2>
+      <div style="font-size: 1.2rem; margin-bottom: 20px;">
+        <div>Điểm XP: <span id="r-score" style="color:var(--primary); font-weight:bold;"></span> ⭐</div>
+        <div>Đúng: <span id="r-correct"></span> | Sai: <span id="r-wrong"></span></div>
+        <div>Số lần dùng gợi ý: <span id="r-hints"></span></div>
+      </div>
+      <h4 style="color: var(--warning);">NỘI DUNG EM CẦN ÔN LẠI:</h4>
+      <ul id="r-weakness" style="text-align:left; color:#f87171; list-style-type:square;"></ul>
+      
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+        <button class="btn btn-primary" onclick="resetGame()">🔄 CHƠI LẠI TỪ ĐẦU</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Teacher Modal -->
+<div id="teacher-modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="color:var(--primary); margin-top:0;">CÀI ĐẶT GIÁO VIÊN</h3>
+    <label>Mức độ:</label>
+    <select id="t-level" onchange="updateSettings()">
+      <option value="1">🟢 CƠ BẢN</option>
+      <option value="2">🟡 KỸ THUẬT VIÊN</option>
+      <option value="3">🔴 CHUYÊN GIA</option>
+    </select>
+    <div style="margin-top: 15px; display: flex; gap: 10px;">
+      <button class="btn btn-primary" onclick="closeTeacherMode()">LƯU & ĐÓNG</button>
+      <button class="btn btn-danger" onclick="resetGame(); closeTeacherMode();">RESET KẾT QUẢ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= GAME STATE ================= */
+const GAME_STATE = {
+  hp: 3, xp: 0, combo: 0, station: 0, level: 1, hints: 0, correct: 0, wrong: 0,
+  weaknesses: new Set(),
+  flow: ['welcome', 'station1', 'station2', 'station3', 'station4', 'minigame1', 'report']
+};
+
+/* ================= SVG GENERATOR ENGINE ================= */
+const SVG_DEFS = `
+  <defs>
+    <g id="res-v"><rect x="-5" y="-15" width="10" height="30" fill="none" stroke="currentColor" stroke-width="2"/></g>
+    <g id="res-h"><rect x="-15" y="-5" width="30" height="10" fill="none" stroke="currentColor" stroke-width="2"/></g>
+    <g id="npn">
+      <circle cx="0" cy="0" r="20" fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="-20" y1="0" x2="-10" y2="0" stroke="currentColor" stroke-width="2"/>
+      <line x1="-10" y1="-10" x2="-10" y2="10" stroke="currentColor" stroke-width="2"/>
+      <line x1="-10" y1="-5" x2="10" y2="-15" stroke="currentColor" stroke-width="2"/>
+      <line x1="-10" y1="5" x2="10" y2="15" stroke="currentColor" stroke-width="2"/>
+      <polygon points="10,15 5,10 2,17" fill="currentColor"/>
+      <text x="-25" y="15" class="node-text">B</text>
+      <text x="15" y="-20" class="node-text">C</text>
+      <text x="15" y="25" class="node-text">E</text>
+    </g>
+    <g id="gnd">
+      <line x1="-15" y1="0" x2="15" y2="0" stroke="currentColor" stroke-width="2"/>
+      <line x1="-10" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="2"/>
+      <line x1="-5" y1="10" x2="5" y2="10" stroke="currentColor" stroke-width="2"/>
+    </g>
+  </defs>
+`;
+
+function getCircuitSVG(type, missing = [], animate = false) {
+  let svg = `<svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" style="color: #64ffda;">`;
+  svg += SVG_DEFS;
+  
+  svg += `<line x1="20" y1="20" x2="250" y2="20" class="wire"/><text x="260" y="25" class="node-text" fill="#ef4444">VCC</text>`;
+  svg += `<use href="#npn" x="150" y="100"/>`;
+  svg += `<line x1="160" y1="115" x2="160" y2="170" class="wire"/>`;
+  
+  let hasRE = (type === 'divider' || type === 'heat_re' || type === 'fb_re');
+  if(hasRE) {
+    if(missing.includes('RE')) svg += `<rect x="150" y="125" width="20" height="30" class="dropzone" data-comp="RE" fill="rgba(255,255,255,0.1)" stroke="#888" stroke-dasharray="2,2"/>`;
+    else { svg += `<use href="#res-v" x="160" y="140"/><text x="175" y="145" class="node-text">RE</text>`; }
+    svg += `<use href="#gnd" x="160" y="170"/>`;
+  } else {
+    svg += `<use href="#gnd" x="160" y="170"/>`;
+  }
+
+  if(missing.includes('RC')) svg += `<rect x="150" y="35" width="20" height="30" class="dropzone" data-comp="RC" fill="rgba(255,255,255,0.1)" stroke="#888" stroke-dasharray="2,2"/>`;
+  else { svg += `<use href="#res-v" x="160" y="50"/><text x="175" y="55" class="node-text">RC</text>`; }
+  svg += `<line x1="160" y1="20" x2="160" y2="35" class="wire"/>`;
+  svg += `<line x1="160" y1="65" x2="160" y2="85" class="wire"/>`;
+
+  if (type === 'fixed' || type === 'heat_nore') {
+    if(missing.includes('RB')) svg += `<rect x="70" y="35" width="20" height="30" class="dropzone" data-comp="RB" fill="rgba(255,255,255,0.1)" stroke="#888" stroke-dasharray="2,2"/>`;
+    else { svg += `<use href="#res-v" x="80" y="50"/><text x="55" y="55" class="node-text">RB</text>`; }
+    svg += `<line x1="80" y1="20" x2="80" y2="35" class="wire"/>`;
+    svg += `<polyline points="80,65 80,100 130,100" class="wire"/>`;
+  }
+  else if (type === 'feedback' || type === 'fb_re') {
+    if(missing.includes('RB')) svg += `<rect x="95" y="65" width="30" height="20" class="dropzone" data-comp="RB" fill="rgba(255,255,255,0.1)" stroke="#888" stroke-dasharray="2,2"/>`;
+    else { svg += `<use href="#res-h" x="110" y="75"/><text x="100" y="65" class="node-text">RB</text>`; }
+    svg += `<polyline points="160,75 125,75" class="wire"/>`;
+    svg += `<polyline points="95,75 70,75 70,100 130,100" class="wire"/>`;
+  }
+  else if (type === 'divider') {
+    if(missing.includes('RB1')) svg += `<rect x="70" y="35" width="20" height="30" class="dropzone" data-comp="RB1" fill="rgba(255,255,255,0.1)" stroke="#888" stroke-dasharray="2,2"/>`;
+    else { svg += `<use href="#res-v" x="80" y="50"/><text x="50" y="55" class="node-text">RB1</text>`; }
+    svg += `<line x1="80" y1="20" x2="80" y2="35" class="wire"/>`;
+    
+    if(missing.includes('RB2')) svg += `<rect x="70" y="125" width="20" height="30" class="dropzone" data-comp="RB2" fill="rgba(255,255,255,0.1)" stroke="#888" stroke-dasharray="2,2"/>`;
+    else { svg += `<use href="#res-v" x="80" y="140"/><text x="50" y="145" class="node-text">RB2</text>`; }
+    
+    svg += `<line x1="80" y1="65" x2="80" y2="125" class="wire"/>`;
+    svg += `<line x1="80" y1="155" x2="80" y2="170" class="wire"/>`;
+    svg += `<use href="#gnd" x="80" y="170"/>`;
+    svg += `<line x1="80" y1="100" x2="130" y2="100" class="wire"/>`;
+  }
+
+  if(animate) {
+    if(type==='fixed') svg += `<polyline points="80,20 80,100 130,100" class="current-flow"/><polyline points="160,20 160,115" class="current-flow" style="stroke:#ef4444;"/>`;
+    if(type==='feedback') svg += `<polyline points="160,20 160,75 70,75 70,100 130,100" class="current-flow"/><polyline points="160,20 160,115" class="current-flow" style="stroke:#ef4444;"/>`;
+    if(type==='divider') svg += `<polyline points="80,20 80,170" class="current-flow"/><polyline points="80,100 130,100" class="current-flow"/><polyline points="160,20 160,170" class="current-flow" style="stroke:#ef4444;"/>`;
+  }
+  
+  svg += `</svg>`;
+  return svg;
+}
+
+/* ================= UTILS & UI ================= */
+function $(id) { return document.getElementById(id); }
+function showScreen(id) { 
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+function updateUI() {
+  $('ui-xp').innerText = GAME_STATE.xp;
+  $('ui-hp').innerText = '❤️'.repeat(GAME_STATE.hp) + '🖤'.repeat(3-GAME_STATE.hp);
+  $('ui-combo').innerText = GAME_STATE.combo;
+  $('ui-station').innerText = Math.max(1, GAME_STATE.flow.indexOf('station'+GAME_STATE.station));
+}
+function addXP(amt) {
+  GAME_STATE.xp += amt + (GAME_STATE.combo * 5);
+  GAME_STATE.combo++;
+  GAME_STATE.correct++;
+  updateUI();
+}
+function takeDamage(topic) {
+  GAME_STATE.combo = 0;
+  GAME_STATE.wrong++;
+  if(GAME_STATE.hp > 0) GAME_STATE.hp--;
+  GAME_STATE.weaknesses.add(topic);
+  updateUI();
+  if(GAME_STATE.hp === 0) {
+    alert("Hết năng lượng! Chuyển sang CHẾ ĐỘ LUYỆN TẬP. Bạn có thể tiếp tục chơi nhưng không được cộng thêm năng lượng.");
+    GAME_STATE.hp = 0;
+  }
+}
+function feedback(elId, msg, isSuccess) {
+  const el = $(elId);
+  el.innerHTML = msg;
+  el.className = 'feedback ' + (isSuccess ? 'success' : 'error');
+}
+
+function nextStation() {
+  let currentIndex = GAME_STATE.flow.indexOf(GAME_STATE.flow.find(s => $('screen-'+s).classList.contains('active')));
+  let nextId = GAME_STATE.flow[currentIndex + 1];
+  if(nextId) {
+    if(nextId === 'station1') initS1();
+    if(nextId === 'station2') initS2();
+    if(nextId === 'station3') initS3();
+    if(nextId === 'station4') initS4();
+    if(nextId === 'minigame1') initMG1();
+    if(nextId === 'report') initReport();
+    showScreen('screen-' + nextId);
+  }
+}
+
+/* ================= DRAG AND DROP LOGIC ================= */
+let draggedData = null;
+let draggedEl = null;
+document.addEventListener('dragstart', e => {
+  if(e.target.classList.contains('draggable')) {
+    draggedData = e.target.dataset.val;
+    draggedEl = e.target;
+    e.dataTransfer.setData('text/plain', draggedData);
+  }
+});
+document.addEventListener('dragover', e => {
+  if(e.target.classList.contains('dropzone')) {
+    e.preventDefault(); e.target.classList.add('hover');
+  }
+});
+document.addEventListener('dragleave', e => {
+  if(e.target.classList.contains('dropzone')) e.target.classList.remove('hover');
+});
+document.addEventListener('drop', e => {
+  if(e.target.classList.contains('dropzone')) {
+    e.preventDefault(); e.target.classList.remove('hover');
+    let target = e.target;
+    let expected = target.dataset.comp || target.dataset.expected;
+    
+    if(target.dataset.type === 'seq') {
+      target.innerHTML = '';
+      target.appendChild(draggedEl);
+      target.dataset.filled = draggedData;
+      return;
+    }
+
+    if(draggedData === expected) {
+      target.classList.add('filled');
+      if(target.tagName === 'rect') {
+        let x = target.getAttribute('x');
+        let y = target.getAttribute('y');
+        target.outerHTML = `<text x="${x}" y="${parseInt(y)+20}" fill="#10b981" font-weight="bold" font-family="monospace">${expected}</text>`;
+      } else {
+        target.innerHTML = `✅ ${expected}`;
+      }
+    } else {
+      target.style.borderColor = 'var(--danger)';
+      setTimeout(()=> target.style.borderColor = '', 500);
+      if(window.onDropError) window.onDropError(expected, draggedData);
+    }
+  }
+});
+
+/* ================= TRẠM 1 ================= */
+const S1_TYPES = ['fixed', 'feedback', 'divider'];
+const S1_NAMES = { 'fixed': 'DÒNG CỐ ĐỊNH', 'feedback': 'HỒI TIẾP ĐIỆN ÁP', 'divider': 'CẦU PHÂN ÁP' };
+let s1_current = {};
+
+function initS1() {
+  $('s1-btn-check').style.display = 'inline-block';
+  $('s1-btn-next').style.display = 'none';
+  $('s1-feedback').style.display = 'none';
+  
+  let type = S1_TYPES[Math.floor(Math.random() * S1_TYPES.length)];
+  let mode = Math.random() > 0.5 ? 'name' : 'comp'; 
+  
+  let missing = [];
+  if(mode === 'comp') {
+    if(type === 'fixed') missing = ['RB'];
+    else if(type === 'feedback') missing = ['RB'];
+    else if(type === 'divider') missing = Math.random() > 0.5 ? ['RB1'] : ['RB2', 'RE'];
+  }
+  
+  s1_current = { type, mode, missing };
+  $('s1-svg').innerHTML = getCircuitSVG(type, missing);
+  
+  let dragsHTML = '';
+  let dropHTML = '';
+  
+  if(mode === 'name') {
+    $('s1-desc').innerText = "Kéo tên phương pháp vào ô trống bên dưới sơ đồ.";
+    let shuffledNames = Object.values(S1_NAMES).sort(()=>Math.random()-0.5);
+    shuffledNames.forEach(n => dragsHTML += `<div class="draggable" draggable="true" data-val="${n}">${n}</div>`);
+    dropHTML = `<div class="dropzone" data-comp="${S1_NAMES[type]}" style="width:200px; padding:10px; text-align:center; color:white;">Kéo tên vào đây</div>`;
+  } else {
+    $('s1-desc').innerText = "Kéo linh kiện còn thiếu vào đúng vị trí đứt nét trên sơ đồ.";
+    let comps = ['RB', 'RB1', 'RB2', 'RC', 'RE'].sort(()=>Math.random()-0.5);
+    comps.forEach(c => dragsHTML += `<div class="draggable" draggable="true" data-val="${c}">${c}</div>`);
+  }
+  
+  $('s1-drag-container').innerHTML = dragsHTML;
+  $('s1-drop-container').innerHTML = dropHTML;
+  
+  window.onDropError = (expected, got) => {
+    takeDamage('Nhận dạng mạch');
+    if(GAME_STATE.hints >= 2 || GAME_STATE.level === 1) {
+      if(mode === 'name') feedback('s1-feedback', `Sai rồi. Mạch này là: ${expected}`, false);
+      else feedback('s1-feedback', `Chưa đúng. Hãy quan sát điểm nối của điện trở với B, C và VCC. Cần kéo: ${expected}`, false);
+    } else {
+      feedback('s1-feedback', `Chưa chính xác! Hãy quan sát kỹ lại.`, false);
+    }
+    GAME_STATE.hints++;
+  };
+}
+
+function checkS1() {
+  let isCorrect = false;
+  if(s1_current.mode === 'name') {
+    isCorrect = $('s1-drop-container').innerHTML.includes('✅');
+  } else {
+    isCorrect = !$('s1-svg').innerHTML.includes('dropzone');
+  }
+  
+  if(isCorrect) {
+    feedback('s1-feedback', `Chính xác! Bạn đã nhận diện đúng.`, true);
+    addXP(10);
+    $('s1-btn-check').style.display = 'none';
+    $('s1-btn-next').style.display = 'inline-block';
+  } else {
+    takeDamage('Nhận dạng mạch');
+    feedback('s1-feedback', `Chưa hoàn thành. Hãy kéo đúng đáp án vào vị trí!`, false);
+  }
+}
+function nextS1() { nextStation(); }
+
+/* ================= TRẠM 2 ================= */
+let s2_current = {};
+const F_OPTS = {
+  fixed_ib: { text: "IB = (VCC - VBE) / RB", approx: "IB ≈ VCC / RB", formula: (c)=> c.vcc / c.rb, exact: (c)=> (c.vcc - c.vbe) / c.rb, unit: 'mA', uiUnit: 'uA' },
+  fb_ib: { text: "IB = (VCC - IC × RC - VBE) / RB", formula: (c)=> (c.vcc - c.vbe)/(c.rb + c.beta*c.rc), exact: (c)=> (c.vcc - c.vbe)/(c.rb + c.beta*c.rc), unit: 'mA', uiUnit: 'uA' },
+  div_vb: { text: "VB = [RB2 / (RB1 + RB2)] × VCC", formula: (c)=> (c.rb2/(c.rb1+c.rb2))*c.vcc, exact: (c)=> (c.rb2/(c.rb1+c.rb2))*c.vcc, unit: 'V', uiUnit: 'V' }
+};
+
+function initS2() {
+  $('s2-btn-check').style.display = 'inline-block';
+  $('s2-btn-next').style.display = 'none';
+  $('s2-feedback').style.display = 'none';
+  $('s2-answer').value = '';
+  
+  let types = Object.keys(F_OPTS);
+  let qType = types[Math.floor(Math.random() * types.length)];
+  let c = { vcc: 12, vbe: 0.7, rb: 200, rc: 1, beta: 100, rb1: 47, rb2: 10, re: 1 };
+  c.vcc = [9, 12, 15, 24][Math.floor(Math.random()*4)];
+  
+  s2_current = { qType, c, data: F_OPTS[qType] };
+  
+  let probText = "";
+  if(qType.includes('fixed')) {
+    probText = `Mạch dòng cố định. VCC = ${c.vcc}V, VBE = ${c.vbe}V, RB = ${c.rb}kΩ. Tính IB.`;
+    $('s2-circuit').innerHTML = getCircuitSVG('fixed');
+  } else if (qType.includes('fb')) {
+    probText = `Mạch hồi tiếp điện áp. VCC = ${c.vcc}V, VBE = ${c.vbe}V, RB = ${c.rb}kΩ, RC = ${c.rc}kΩ, β = ${c.beta}. Tính IB (tính gộp IB=(VCC-VBE)/(RB+βRC)).`;
+    $('s2-circuit').innerHTML = getCircuitSVG('feedback');
+  } else {
+    probText = `Mạch cầu phân áp. VCC = ${c.vcc}V, RB1 = ${c.rb1}kΩ, RB2 = ${c.rb2}kΩ. Tính điện áp VB.`;
+    $('s2-circuit').innerHTML = getCircuitSVG('divider');
+  }
+  $('s2-problem').innerText = probText;
+  
+  let opts = Object.values(F_OPTS).map(o => `<option value="${o.text}">${o.text}</option>`);
+  opts.push(`<option value="IC = β × IB">IC = β × IB</option>`);
+  $('s2-formula').innerHTML = opts.sort(()=>Math.random()-0.5).join('');
+}
+
+function checkS2() {
+  let formSel = $('s2-formula').value;
+  let ansInput = parseFloat($('s2-answer').value);
+  let unitSel = $('s2-unit').value;
+  
+  if(formSel !== s2_current.data.text && formSel !== s2_current.data.approx) {
+    takeDamage('Tính toán công thức');
+    feedback('s2-feedback', "Em hãy xem đại lượng cần tìm và xác định các đại lượng đã biết để chọn đúng công thức.", false);
+    return;
+  }
+  if(unitSel !== s2_current.data.uiUnit) {
+    takeDamage('Đơn vị đo lường');
+    feedback('s2-feedback', "Công thức đúng nhưng hãy kiểm tra lại phép tính hoặc đơn vị.", false);
+    return;
+  }
+  
+  let exactBase = s2_current.data.exact(s2_current.c);
+  let approxBase = s2_current.data.formula(s2_current.c);
+  let mult = unitSel === 'uA' ? 1000 : 1;
+  let ex = exactBase * mult;
+  let ap = approxBase * mult;
+  
+  let tol = 0.05; 
+  if (Math.abs(ansInput - ex)/ex < tol || Math.abs(ansInput - ap)/ap < tol) {
+    feedback('s2-feedback', "Chính xác! Công thức và kết quả tính toán đều đúng.", true);
+    addXP(15);
+    $('s2-btn-check').style.display = 'none';
+    $('s2-btn-next').style.display = 'inline-block';
+  } else {
+    takeDamage('Tính toán số học');
+    GAME_STATE.hints++;
+    let hint = (GAME_STATE.hints >= 2) ? `(Gợi ý: ≈ ${ap.toFixed(2)} ${unitSel})` : "";
+    feedback('s2-feedback', `Công thức em chọn đúng nhưng kết quả chưa chính xác. Hãy kiểm tra lại phép tính và đơn vị. ${hint}`, false);
+  }
+}
+function nextS2() { nextStation(); }
+
+/* ================= TRẠM 3 ================= */
+let s3State = { on: false, type: 'fixed' };
+function initS3() { renderS3(); }
+function renderS3() {
+  let type = $('s3-circuit-type').value;
+  s3State.type = type;
+  
+  let slidersHTML = `
+    <div class="slider-group"><label>VCC (V) <span id="val-vcc">12</span></label><input type="range" id="sim-vcc" min="5" max="24" value="12" oninput="updateS3()"></div>
+    <div class="slider-group"><label>RC (kΩ) <span id="val-rc">1</span></label><input type="range" id="sim-rc" min="0.1" max="10" step="0.1" value="1" oninput="updateS3()"></div>
+  `;
+  
+  if(type === 'fixed' || type === 'feedback') {
+    slidersHTML += `<div class="slider-group"><label>RB (kΩ) <span id="val-rb">200</span></label><input type="range" id="sim-rb" min="10" max="1000" step="10" value="200" oninput="updateS3()"></div>`;
+  } else if (type === 'divider') {
+    slidersHTML += `<div class="slider-group"><label>RB1 (kΩ) <span id="val-rb1">47</span></label><input type="range" id="sim-rb1" min="1" max="100" value="47" oninput="updateS3()"></div>`;
+    slidersHTML += `<div class="slider-group"><label>RB2 (kΩ) <span id="val-rb2">10</span></label><input type="range" id="sim-rb2" min="1" max="100" value="10" oninput="updateS3()"></div>`;
+    slidersHTML += `<div class="slider-group"><label>RE (kΩ) <span id="val-re">1</span></label><input type="range" id="sim-re" min="0.1" max="10" step="0.1" value="1" oninput="updateS3()"></div>`;
+  }
+  
+  $('s3-sliders').innerHTML = slidersHTML;
+  updateS3();
+}
+
+function updateS3() {
+  let type = s3State.type;
+  $('s3-svg').innerHTML = getCircuitSVG(type, [], s3State.on);
+  
+  if(!s3State.on) {
+    $('s3-btn-power').innerHTML = "▶ CẤP NGUỒN";
+    $('s3-status').innerText = "OFF";
+    $('s3-status').style.color = "var(--danger)";
+    $('s3-meters').innerHTML = `<div class="meter">VB: 0.00 V</div><div class="meter">VE: 0.00 V</div><div class="meter">IB: 0.00 μA</div><div class="meter">IC: 0.00 mA</div>`;
+    return;
+  }
+  
+  $('s3-btn-power').innerHTML = "⏸ DỪNG";
+  $('s3-status').innerText = "ON";
+  $('s3-status').style.color = "var(--primary)";
+  
+  let vcc = parseFloat($('sim-vcc').value); $('val-vcc').innerText = vcc;
+  let rc = parseFloat($('sim-rc').value); $('val-rc').innerText = rc;
+  let vbe = 0.7; let beta = 100;
+  let vb=0, ve=0, ib=0, ic=0;
+  
+  if(type === 'fixed') {
+    let rb = parseFloat($('sim-rb').value); $('val-rb').innerText = rb;
+    ib = (vcc - vbe) / rb;
+    ic = beta * ib; vb = vbe; ve = 0;
+  } else if (type === 'feedback') {
+    let rb = parseFloat($('sim-rb').value); $('val-rb').innerText = rb;
+    ib = (vcc - vbe) / (rb + beta*rc);
+    ic = beta * ib; vb = vbe; ve = 0;
+  } else if (type === 'divider') {
+    let rb1 = parseFloat($('sim-rb1').value); $('val-rb1').innerText = rb1;
+    let rb2 = parseFloat($('sim-rb2').value); $('val-rb2').innerText = rb2;
+    let re = parseFloat($('sim-re').value); $('val-re').innerText = re;
+    vb = vcc * rb2 / (rb1 + rb2);
+    ve = Math.max(0, vb - vbe);
+    let ie = ve / re; ic = ie; ib = ic / beta;
+  }
+  
+  let ib_uA = (ib * 1000).toFixed(2);
+  let ic_mA = ic.toFixed(2);
+  let vce = Math.max(0, vcc - ic*rc - ve).toFixed(2);
+  
+  $('s3-meters').innerHTML = `
+    <div class="meter">VB: ${vb.toFixed(2)} V</div>
+    <div class="meter">VE: ${ve.toFixed(2)} V</div>
+    <div class="meter">VCE: ${vce} V</div>
+    <div class="meter">IB: ${ib_uA} μA</div>
+    <div class="meter" style="color: ${ic > (vcc/rc) ? 'var(--danger)' : 'var(--primary)'}">IC: ${ic_mA} mA</div>
+  `;
+}
+function completeS3() { addXP(20); nextStation(); }
+
+/* ================= TRẠM 4 ================= */
+function initS4() {
+  $('s4-svg-nore').innerHTML = getCircuitSVG('heat_nore');
+  $('s4-svg-re').innerHTML = getCircuitSVG('heat_re');
+  
+  let steps = ['NHIỆT ĐỘ ↑', 'IC ↑', 'IE ↑', 'VE ↑', 'VBE ↓', 'IB ↓', 'IC ↓'];
+  let shuffled = [...steps].sort(()=>Math.random()-0.5);
+  
+  $('s4-draggables').innerHTML = shuffled.map(s => `<div class="draggable" draggable="true" data-val="${s}">${s}</div>`).join('');
+  
+  let slotsHtml = '';
+  for(let i=0; i<steps.length; i++) {
+    slotsHtml += `<div class="seq-slot">
+      <span style="width:20px; font-weight:bold;">${i+1}.</span>
+      <div class="dropzone" data-type="seq" data-expected="${steps[i]}" style="color:#64748b;">Thả thẻ vào đây</div>
+    </div>`;
+    if(i < steps.length-1) slotsHtml += `<div class="arrow-down">↓</div>`;
+  }
+  $('s4-seq-container').innerHTML = slotsHtml;
+}
+
+function checkS4() {
+  let slots = document.querySelectorAll('#s4-seq-container .dropzone');
+  let correct = true;
+  slots.forEach(slot => {
+    if(slot.dataset.filled !== slot.dataset.expected) {
+      correct = false; slot.style.borderColor = 'var(--danger)';
+    } else { slot.style.borderColor = 'var(--primary)'; }
+  });
+  
+  if(correct) {
+    feedback('s4-feedback', `Tuyệt vời! Bạn đã sắp xếp đúng chuỗi ổn định nhiệt theo giáo trình. <strong>DÒNG IC ĐƯỢC KHỐNG CHẾ – MẠCH ĐƯỢC ỔN ĐỊNH</strong>`, true);
+    addXP(25);
+    $('s4-btn-check').style.display = 'none';
+    $('s4-btn-next').style.display = 'inline-block';
+  } else {
+    takeDamage('Ổn định nhiệt bằng RE');
+    feedback('s4-feedback', `Chưa chính xác! Nhớ lại: Nhiệt độ tăng làm IC tăng, kéo theo IE tăng...`, false);
+  }
+}
+
+/* ================= MINI GAME 1 ================= */
+let mg1_type = '';
+function initMG1() {
+  mg1_type = Math.random() > 0.5 ? 'âm' : 'dương';
+  let canvas = $('s-mg1-canvas');
+  let ctx = canvas.getContext('2d');
+  let w = canvas.width = canvas.parentElement.clientWidth - 40;
+  let h = canvas.height = 150;
+  let offset = 0;
+  
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath(); ctx.strokeStyle = '#3b82f6';
+    for(let x=0; x<w; x++) { let y = Math.sin((x + offset) * 0.05) * 40 + h/2; x===0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+    
+    ctx.beginPath(); ctx.strokeStyle = mg1_type === 'âm' ? '#ef4444' : '#10b981';
+    let phase = mg1_type === 'âm' ? Math.PI : 0;
+    for(let x=0; x<w; x++) { let y = Math.sin((x + offset) * 0.05 + phase) * 20 + h/2; x===0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+    
+    ctx.fillStyle = '#fff'; ctx.font = "14px Arial";
+    ctx.fillText("Vin (Xanh biển)", 10, 20);
+    ctx.fillText(`Vfeedback (${mg1_type==='âm'?'Đỏ':'Xanh lá'})`, 10, 40);
+    
+    offset += 2;
+    if($('screen-minigame1').classList.contains('active')) requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function checkMG1(ans) {
+  if(ans === mg1_type) {
+    feedback('mg1-feedback', `Chính xác! Hai tín hiệu ${ans==='âm'?'ngược pha':'đồng pha'} nên đây là hồi tiếp ${ans.toUpperCase()}.`, true);
+    addXP(15);
+    $('mg1-btn-next').style.display = 'inline-block';
+  } else {
+    takeDamage('Hồi tiếp');
+    feedback('mg1-feedback', `Chưa chính xác. Hãy nhìn kỹ pha của hai tín hiệu nhé!`, false);
+  }
+}
+
+/* ================= BÁO CÁO ================= */
+function initReport() {
+  $('r-score').innerText = GAME_STATE.xp;
+  $('r-correct').innerText = GAME_STATE.correct;
+  $('r-wrong').innerText = GAME_STATE.wrong;
+  $('r-hints').innerText = GAME_STATE.hints;
+  
+  if(GAME_STATE.weaknesses.size > 0) {
+    $('r-weakness').innerHTML = Array.from(GAME_STATE.weaknesses).map(w => `<li>${w}</li>`).join('');
+  } else {
+    $('r-weakness').innerHTML = "<li style='color:var(--primary); list-style-type:none;'>Hoàn hảo! Bạn nắm vững mọi kiến thức cơ bản.</li>";
+  }
+}
+
+function resetGame() {
+  GAME_STATE.hp = 3; GAME_STATE.xp = 0; GAME_STATE.combo = 0; GAME_STATE.hints = 0;
+  GAME_STATE.correct = 0; GAME_STATE.wrong = 0;
+  GAME_STATE.weaknesses.clear();
+  updateUI();
+  showScreen('screen-welcome');
+}
+
+/* ================= TEACHER MODE ================= */
+function openTeacherMode() { $('teacher-modal').classList.add('active'); }
+function closeTeacherMode() { $('teacher-modal').classList.remove('active'); }
+function updateSettings() { GAME_STATE.level = parseInt($('t-level').value); }
+
+updateUI();
+</script>
+</body>
+</html>
